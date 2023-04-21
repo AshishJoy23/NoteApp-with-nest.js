@@ -45,21 +45,30 @@ class NoteDB extends ApiCalls {
         data: value.toJson(),
       );
       final resultAsJson = jsonDecode(result.data);
-      return NoteModel.fromJson(resultAsJson as Map<String, dynamic>);
+      final note = NoteModel.fromJson(resultAsJson as Map<String, dynamic>);
+      noteListNotifier.value.insert(0, note);
+      return note;
     } on DioError catch (e){
-      print(e.response?.data);
-      print(e);
       return null;
     }
     catch (e) {
-      print(e.toString());
+      return null;
     }
   }
 
   @override
   Future<void> deleteNote(String id) async {
-    // TODO: implement deleteNote
-    throw UnimplementedError();
+    //replaceFirst is used to remove the first matched identifier('{id}') with the second argument (id)
+    final result = await dio.delete(url.deleteNote.replaceFirst('{id}', id));
+    if (result.data==null) {
+      return;
+    }
+    final index = noteListNotifier.value.indexWhere((note) => note.id == id);
+    if (index == -1) {
+      return;
+    }
+    noteListNotifier.value.removeAt(index);
+    noteListNotifier.notifyListeners();
   }
 
   @override
@@ -69,7 +78,7 @@ class NoteDB extends ApiCalls {
       final resultAsJson = jsonDecode(result.data);
       final getNoteResp = GetAllNotesResp.fromJson(resultAsJson); 
       noteListNotifier.value.clear();
-      noteListNotifier.value.addAll(getNoteResp.data);
+      noteListNotifier.value.addAll(getNoteResp.data.reversed);
       return getNoteResp.data;
     } else {
       noteListNotifier.value.clear();
@@ -80,7 +89,30 @@ class NoteDB extends ApiCalls {
 
   @override
   Future<NoteModel?> updateNote(NoteModel value) async {
-    // TODO: implement updateNote
-    throw UnimplementedError();
+    final result = await dio.put(url.updateNote, data: value.toJson());
+    if (result.data == null) {
+      return null;
+    } 
+    //find index
+    final index = noteListNotifier.value.indexWhere((note) => note.id == value.id);
+    if (index == -1) {
+      return null;
+    }
+
+    //remove from index
+    noteListNotifier.value.removeAt(index);
+
+    //add note to that index
+    noteListNotifier.value.insert(index, value);
+    noteListNotifier.notifyListeners();
+    return value;
+  }
+
+  NoteModel? getNoteByID(String id){
+    try {
+      return noteListNotifier.value.firstWhere((note) => note.id == id);
+    } catch (e) {
+      return null;
+    }
   }
 }
